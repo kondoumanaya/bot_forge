@@ -75,8 +75,8 @@ class BacktestEngine:
         strategy_name: str,
         exchange: str,
         symbol: str,
-        start_date: datetime,
-        end_date: datetime,
+        start_date: str,
+        end_date: str,
         initial_balance: float,
         parameters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -85,15 +85,26 @@ class BacktestEngine:
             if parameters is None:
                 parameters = {}
             
-            strategy_class = self.strategies.get(strategy_name)
+            strategy_mapping = {
+                "Simple MA Crossover": "sma_crossover",
+                "simple_ma_crossover": "sma_crossover",
+                "RSI Strategy": "rsi_strategy",
+                "MACD Strategy": "macd_strategy"
+            }
+            
+            mapped_strategy = strategy_mapping.get(strategy_name, strategy_name)
+            strategy_class = self.strategies.get(mapped_strategy)
             if not strategy_class:
-                raise ValueError(f"Strategy {strategy_name} not found")
+                raise ValueError(f"Strategy {mapped_strategy} not found")
             
             strategy = strategy_class(strategy_name, parameters)
             strategy.balance = initial_balance
             
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d") if isinstance(start_date, str) else start_date
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d") if isinstance(end_date, str) else end_date
+            
             historical_data = await self._get_historical_data(
-                exchange, symbol, start_date, end_date
+                exchange, symbol, start_dt, end_dt
             )
             
             if historical_data.empty:
@@ -105,7 +116,7 @@ class BacktestEngine:
                 "strategy_name": strategy_name,
                 "exchange": exchange,
                 "symbol": symbol,
-                "period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+                "period": f"{start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}",
                 "initial_balance": initial_balance,
                 "final_balance": results['final_balance'],
                 "total_return": results['total_return'],

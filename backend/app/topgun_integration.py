@@ -36,8 +36,10 @@ class TopgunDataCollector:
         self.is_collecting = False
         self.session: Optional[aiohttp.ClientSession] = None
         
-    async def start_collection(self, exchange: str, symbol: str, data_types: List[str]):
+    async def start_collection(self, exchange: str, symbol: str, data_types: Optional[List[str]] = None):
         """Start data collection from exchange using topgun"""
+        if data_types is None:
+            data_types = ["tick", "orderbook"]  # デフォルトでtickとorderbookを収集
         if not TOPGUN_AVAILABLE:
             logger.error("Topgun library not available")
             return False

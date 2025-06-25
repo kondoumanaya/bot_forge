@@ -1,0 +1,3 @@
+[submodule "libs/root-bot"]
+	path = libs/root-bot
+	url = https://github.com/kondoumanaya/root-bot.git

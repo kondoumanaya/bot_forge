@@ -1,210 +1,526 @@
-# bot_forge システム
+# Bot Forge システム
 
 高性能な仮想通貨取引ボットのバックテスト・分析・データ収集システム
 
-## システム概要
+## 🎯 システム概要
 
-bot_forgeは以下の機能を提供する包括的な取引ボットシステムです：
+Bot Forgeは以下の機能を提供する包括的な取引ボットシステムです：
 
 1. **Botのバックテスト** - 戦略の有効性を過去データで検証、エッジ抽出
 2. **o3による相場分析** - 特徴量探索・MLモデル作成のための学習データ生成  
 3. **戦略の可視化** - PnL, ドローダウン, エントリーポイントの分析
 4. **データ収集基盤構築** - 複数取引所・時間足に対応したデータ保存/管理機構
 
-## アーキテクチャ
+## 🏗️ システムアーキテクチャ
 
 ```
 +----------------------------+
-| UI Frontend (Next.js)      |
+| UI Frontend (React + Vite) |
 | - shadcn/ui + Tailwind CSS |
-| - 時間足切替 / 取引所選択  |
+| - サイドバーナビゲーション |
+| - 15取引所対応             |
 +-------------+--------------+
               ↓
 +----------------------------+
 | FastAPI Backend            |
 | - WebSocket受信 & DataStore|
 | - SQLite保存 / JSON出力    |
+| - topgun統合               |
 +-------------+--------------+
               ↓
 +----------------------------+
 | ストレージ層               |
-| - SQLite / DuckDB          |
-| - Parquet / CSV対応        |
-| - bot戦略ごとに保存分離    |
+| - SQLite (12ヶ月)          |
+| - Parquet圧縮 (2年)        |
+| - 自動削除 (2年以上)       |
 +----------------------------+
 ```
 
-## 技術スタック
+## 🛠️ 技術スタック
 
-- **フロントエンド**: Next.js + Tailwind CSS + shadcn/ui
-- **バックエンド**: FastAPI + WebSocket
-- **データ取得**: topgun + DataStore
-- **保存**: SQLite(PoC向け)
-- **可視化**: rich / seaborn / plotly
+- **フロントエンド**: React + Vite + Tailwind CSS + shadcn/ui
+- **バックエンド**: FastAPI + WebSocket + SQLAlchemy
+- **データ取得**: topgun + DataStore (15取引所対応)
+- **データベース**: SQLite (開発) / PostgreSQL (本番)
+- **可視化**: Recharts / rich / seaborn / plotly
 - **分析・ML**: pandas / scikit-learn / pytorch
 - **ファイル出力**: JSON / Parquet / CSV 形式
 
-## データ管理ポリシー
+## 📊 対応取引所 (15取引所)
 
-- **直近12ヶ月**: SQLite(常時アクセス)
-- **6ヶ月~2年**: 圧縮(Parquet/CSV + zip)
-- **2年以上前**: 自動削除
+| 取引所 | WebSocket | API | 備考 |
+|--------|-----------|-----|------|
+| Binance | ✅ | ✅ | グローバル最大手 |
+| GMO Coin | ✅ | ✅ | 日本大手 |
+| bitFlyer | ✅ | ✅ | 日本最大手 |
+| bitbank | ✅ | ✅ | 日本取引量上位 |
+| Coincheck | ✅ | ✅ | 日本大手 |
+| OKJ | ✅ | ✅ | OKX日本版 |
+| BitTrade | ✅ | ✅ | 日本取引所 |
+| Bybit | ✅ | ✅ | デリバティブ大手 |
+| OKX | ✅ | ✅ | グローバル大手 |
+| Phemex | ✅ | ✅ | デリバティブ |
+| Bitget | ✅ | ✅ | コピートレード |
+| MEXC | ✅ | ✅ | アルトコイン豊富 |
+| KuCoin | ✅ | ✅ | アルトコイン |
+| BitMEX | ✅ | ✅ | デリバティブ老舗 |
+| Hyperliquid | ✅ | ✅ | DeFi DEX |
 
-## 環境構築
+## 🚀 クイックスタート
 
-### 前提条件
-
-- Python 3.12+
-- Node.js 18+
-- Git
-
-### 1. リポジトリのクローン
+### 自動セットアップ（推奨）
 
 ```bash
+# リポジトリクローン
 git clone https://github.com/kondoumanaya/bot_forge.git
 cd bot_forge
+
+# 自動セットアップ実行
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+
+# システム起動
+./start_all.sh
+```
+
+### 手動セットアップ
+
+#### 前提条件
+
+- **Python 3.12+** (pyenv推奨)
+- **Node.js 18+** (nvm推奨)
+- **Poetry** (Python依存関係管理)
+- **Git** (サブモジュール管理)
+
+#### 1. 環境構築
+
+```bash
+# リポジトリクローン
+git clone https://github.com/kondoumanaya/bot_forge.git
+cd bot_forge
+
+# Git サブモジュール初期化
 git submodule update --init --recursive
-```
 
-### 2. バックエンドのセットアップ
-
-```bash
+# バックエンド環境構築
 cd backend
-pip install -r requirements.txt
-```
+poetry install
+poetry run python -c "from app.database import init_db; init_db()"
 
-### 3. フロントエンドのセットアップ
-
-```bash
-cd frontend
+# フロントエンド環境構築
+cd ../frontend
 npm install
+npm run build  # ビルドテスト
+
+cd ..
 ```
 
-### 4. 環境変数の設定
+#### 2. 環境変数設定
 
 ```bash
-cp .env.example .env
-# .envファイルを編集して必要な設定を行う
+# バックエンド環境変数
+cat > backend/.env << EOF
+DATABASE_URL=sqlite:///./bot_forge.db
+SECRET_KEY=your-secret-key-here
+DEBUG=true
+LOG_LEVEL=info
+API_HOST=0.0.0.0
+API_PORT=8000
+EOF
+
+# フロントエンド環境変数
+cat > frontend/.env << EOF
+VITE_API_BASE_URL=http://localhost:8000
+VITE_WS_BASE_URL=ws://localhost:8000
+VITE_APP_NAME=Bot Forge
+EOF
 ```
 
-## アプリケーション起動
-
-### 開発環境
+#### 3. アプリケーション起動
 
 ```bash
-# バックエンド起動
+# バックエンド起動（ターミナル1）
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# フロントエンド起動（別ターミナル）
+# フロントエンド起動（ターミナル2）
 cd frontend
 npm run dev
 ```
 
-### プロダクション環境
+#### 4. アクセス確認
+
+- **フロントエンド**: http://localhost:5173
+- **バックエンドAPI**: http://localhost:8000
+- **API文書**: http://localhost:8000/docs
+
+## 📱 UI機能詳細
+
+### サイドバーナビゲーション
+
+1. **📊 Data Preview** - リアルタイムデータ表示
+   - Live Price Data (価格データ)
+   - Order Book (板情報)
+   - Recent Trades (約定履歴)
+
+2. **🔄 Backtest** - バックテスト実行
+   - 戦略選択 (Simple MA Crossover等)
+   - 期間設定・初期資金設定
+   - パフォーマンス分析
+
+3. **📈 Analysis** - 市場分析・ML特徴量
+   - Technical Indicators (RSI, MACD, Bollinger Bands)
+   - Price vs Volume Correlation
+   - o3分析連携
+
+4. **💾 Data Management** - データ管理
+   - データ統計表示
+   - CSV/Parquet エクスポート
+   - データ検索・フィルター
+
+5. **⚙️ ルート設定** - API設定
+   - 15取引所のAPIキー管理
+   - セキュリティ設定
+   - 接続テスト
+
+### データ管理ポリシー
+
+- **直近12ヶ月**: SQLite (常時高速アクセス)
+- **6ヶ月~2年**: Parquet圧縮保存
+- **2年以上前**: 自動削除 (ストレージ最適化)
+
+## 🔧 CLI ツール使用方法
+
+### データエクスポート
+
+```bash
+# Tick データエクスポート (CSV)
+python cli/export.py \
+  --exchange binance \
+  --symbol BTC_JPY \
+  --data-type tick \
+  --format csv \
+  --output /tmp/btc_tick.csv \
+  --days 7
+
+# Order Book データエクスポート (Parquet圧縮)
+python cli/export.py \
+  --exchange gmo \
+  --symbol BTC_JPY \
+  --data-type orderbook \
+  --format parquet \
+  --output /tmp/btc_orderbook.parquet \
+  --days 30 \
+  --compress
+
+# OHLC データエクスポート
+python cli/export.py \
+  --exchange bitflyer \
+  --symbol BTC_JPY \
+  --data-type ohlc \
+  --format csv \
+  --output /tmp/btc_ohlc.csv \
+  --days 90
+```
+
+### o3分析連携
+
+```bash
+# JSON形式で分析結果出力
+python cli/o3_analysis.py \
+  --input /tmp/btc_tick.csv \
+  --output /tmp/analysis_result.json \
+  --format json
+
+# プロンプト形式で出力 (o3直接連携)
+python cli/o3_analysis.py \
+  --input /tmp/btc_tick.csv \
+  --format prompt
+```
+
+### 分析例
+
+```bash
+# 1. データエクスポート
+python cli/export.py --exchange binance --symbol BTC_JPY --data-type tick --format csv --output btc_data.csv --days 30
+
+# 2. o3分析実行
+python cli/o3_analysis.py --input btc_data.csv --format json --output analysis.json
+
+# 3. 結果確認 (Rich formatting)
+python -c "
+import json
+from rich.console import Console
+from rich.json import JSON
+
+console = Console()
+with open('analysis.json') as f:
+    data = json.load(f)
+console.print(JSON.from_data(data))
+"
+```
+
+## 🔄 Git サブモジュール管理
+
+### 基本操作
+
+```bash
+# サブモジュール追加
+git submodule add https://github.com/user/repo.git libs/repo
+
+# サブモジュール更新
+git submodule update --remote --recursive
+
+# 全サブモジュール最新化
+git submodule foreach git pull origin main
+
+# サブモジュール状態確認
+git submodule status
+```
+
+### 自動更新
+
+```bash
+# 依存関係自動更新 (git pull後に実行)
+./scripts/update_dependencies.sh
+
+# 自動コミット付き更新
+./scripts/update_dependencies.sh --auto-commit
+
+# Git フック設定 (pull後自動実行)
+echo "./scripts/update_dependencies.sh --git-hook" > .git/hooks/post-merge
+chmod +x .git/hooks/post-merge
+```
+
+## 🧪 開発・テスト
+
+### リンター・型チェック
 
 ```bash
 # バックエンド
 cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+poetry run flake8 app/
+poetry run mypy app/
 
 # フロントエンド
 cd frontend
-npm run build
-npm start
+npm run lint
+npm run type-check
 ```
 
-## CLI使用方法
+### テスト実行
 
 ```bash
-# データ分析
-python cli/analyze.py --exchange binance --symbol BTC_JPY --period 1d
+# バックエンドテスト
+cd backend
+poetry run pytest
 
-# データエクスポート
-python cli/export.py --format parquet --output data.parquet
-
-# o3連携
-python cli/o3_analysis.py --input data.json
+# フロントエンドテスト
+cd frontend
+npm test
 ```
 
-## 機能詳細
-
-### UI要件
-
-1. **取引所切り替え** - プルダウンまたはタブで複数取引所を選択可能
-2. **時間足切り替え** - 1秒/1分/5分/1時間/日足/週足/月足などの切り替えUI
-3. **データプレビュー** - 現在取得しているTickデータ・板・OHLCなどのライブビュー
-4. **データ保存操作** - 条件を指定してCSV/Parquet形式で保存、ファイルDL可能
-5. **分析パネル** - 特徴量の可視化、勝率・PnLグラフ表示
-6. **データ管理** - 期間指定検索/取引所フィルター/データ検索表示
-
-### 相場データ取得要件
-
-- **Tickデータ** - 約定価格・数量 (ミリ秒)
-- **板情報** - bid/ask価格とサイズのリスト(深さ10~50程度)
-- **成行約定履歴** - takerの注文履歴(price/size/side)
-- **時間足** - OHLC 1min, 5min, 1h, daily, week
-- **ポジション/トレード履歴** - botの行動ログ(entry/exit,損益など)
-- **タイムスタンプ** - JST/UTC秒単位(ローカル→UTC統一)
-
-## 開発ガイド
-
-### Git Submodule管理
+### データ収集テスト
 
 ```bash
-# サブモジュール追加
-git submodule add <repository_url> <path>
+# 特定取引所のデータ収集テスト
+python -c "
+from backend.app.topgun_integration import TopgunDataCollector
+import asyncio
 
-# サブモジュール更新
-git submodule update --remote
+async def test_collection():
+    collector = TopgunDataCollector()
+    await collector.start_collection('binance', 'BTC_JPY')
+    await asyncio.sleep(10)  # 10秒間データ収集
+    await collector.stop_collection()
 
-# 全サブモジュール同期
-git submodule foreach git pull origin main
+asyncio.run(test_collection())
+"
 ```
 
-### 依存関係更新
+## 🚨 トラブルシューティング
+
+### よくある問題と解決方法
+
+#### 1. WebSocket接続エラー
 
 ```bash
-# Python依存関係更新
-pip install -r requirements.txt
+# 症状: データ収集が開始されない
+# 原因: APIキー未設定 or ネットワーク問題
 
-# Node.js依存関係更新
+# 解決方法:
+# 1. ルート設定でAPIキーを確認
+# 2. ネットワーク接続確認
+curl -I https://api.binance.com/api/v3/ping
+
+# 3. ログ確認
+tail -f backend/logs/app.log
+```
+
+#### 2. データベース接続エラー
+
+```bash
+# 症状: SQLite接続失敗
+# 解決方法:
+cd backend
+poetry run python -c "from app.database import init_db; init_db()"
+
+# 権限確認
+ls -la bot_forge.db
+chmod 664 bot_forge.db
+```
+
+#### 3. フロントエンド起動エラー
+
+```bash
+# Node.js バージョン確認
+node --version  # 18+ 必要
+
+# 依存関係再インストール
+cd frontend
+rm -rf node_modules package-lock.json
 npm install
 
-# 自動更新スクリプト
-./scripts/update_dependencies.sh
+# ポート競合確認
+lsof -i :5173
 ```
 
-## トラブルシューティング
+#### 4. Poetry/依存関係エラー
 
-### よくある問題
+```bash
+# Poetry再インストール
+curl -sSL https://install.python-poetry.org | python3 -
 
-1. **WebSocket接続エラー**
-   - ネットワーク設定を確認
-   - APIキーの有効性を確認
+# 仮想環境リセット
+cd backend
+poetry env remove python
+poetry install
+```
 
-2. **データベース接続エラー**
-   - SQLiteファイルの権限を確認
-   - ディスク容量を確認
+### ログ確認
 
-3. **フロントエンド起動エラー**
-   - Node.jsバージョンを確認
-   - npm installを再実行
+```bash
+# アプリケーションログ
+tail -f backend/logs/app.log
 
-## ライセンス
+# WebSocketログ
+tail -f backend/logs/websocket.log
 
-MIT License
+# データ収集ログ
+tail -f backend/logs/data_collection.log
+```
 
-## 貢献
+## 📚 API リファレンス
 
-プルリクエストやイシューの報告を歓迎します。
+### REST API エンドポイント
 
-## サポート
+```bash
+# 設定管理
+GET    /api/settings/exchanges     # 取引所一覧
+POST   /api/settings/api-keys      # APIキー保存
+GET    /api/settings/api-keys      # APIキー取得
 
-- GitHub Issues: https://github.com/kondoumanaya/bot_forge/issues
-- Documentation: [docs/](./docs/)
+# データ管理
+GET    /api/data/statistics        # データ統計
+POST   /api/data/export           # データエクスポート
+GET    /api/data/search           # データ検索
+
+# バックテスト
+POST   /api/backtest/run          # バックテスト実行
+GET    /api/backtest/results      # 結果取得
+
+# 分析
+POST   /api/analysis/technical    # テクニカル分析
+POST   /api/analysis/ml-features  # ML特徴量生成
+POST   /api/analysis/o3          # o3分析連携
+```
+
+### WebSocket API
+
+```bash
+# データストリーム
+ws://localhost:8000/ws/data/{exchange}/{symbol}
+
+# システム状態
+ws://localhost:8000/ws/status
+
+# バックテスト進捗
+ws://localhost:8000/ws/backtest/{session_id}
+```
+
+## 🔐 セキュリティ
+
+### APIキー管理
+
+- **暗号化保存**: AES-256で暗号化してSQLiteに保存
+- **メモリ保護**: 使用後即座にメモリクリア
+- **アクセス制御**: ローカルアクセスのみ許可
+- **監査ログ**: API使用履歴を記録
+
+### 推奨設定
+
+```bash
+# 本番環境では以下を設定
+export SECRET_KEY="$(openssl rand -hex 32)"
+export DATABASE_URL="postgresql://user:pass@localhost/botforge"
+export DEBUG=false
+export LOG_LEVEL=warning
+```
+
+## 🚀 デプロイメント
+
+### Docker デプロイ
+
+```bash
+# Docker Compose起動
+docker-compose up -d
+
+# ログ確認
+docker-compose logs -f
+```
+
+### 本番環境設定
+
+```bash
+# 環境変数設定
+export ENVIRONMENT=production
+export DATABASE_URL=postgresql://...
+export REDIS_URL=redis://...
+
+# システム起動
+./scripts/production_start.sh
+```
+
+## 🤝 貢献・開発参加
+
+### 開発フロー
+
+1. **Issue作成** - 機能要求・バグ報告
+2. **Fork & Branch** - 開発ブランチ作成
+3. **実装 & テスト** - 機能実装・テスト追加
+4. **Pull Request** - レビュー依頼
+5. **マージ** - main ブランチへマージ
+
+### コーディング規約
+
+- **Python**: PEP 8 + Black + isort
+- **TypeScript**: ESLint + Prettier
+- **コミット**: Conventional Commits
+- **テスト**: 新機能には必ずテスト追加
+
+## 📄 ライセンス
+
+MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照
+
+## 📞 サポート
+
+- **GitHub Issues**: https://github.com/kondoumanaya/bot_forge/issues
+- **Documentation**: [docs/](./docs/)
+- **Wiki**: https://github.com/kondoumanaya/bot_forge/wiki
 
 ---
 
-**Link to Devin run**: https://app.devin.ai/sessions/4e167d0b763d4952891dcdc835abc389
-**Requested by**: manaya_kondou@icloud.com
+**🔗 Link to Devin run**: https://app.devin.ai/sessions/4e167d0b763d4952891dcdc835abc389  
+**👤 Requested by**: manaya_kondou@icloud.com
+
+**⭐ システム開発完了 - 全15取引所対応・包括的分析機能・日本語完全対応**

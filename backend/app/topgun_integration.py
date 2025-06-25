@@ -49,16 +49,34 @@ class TopgunDataCollector:
             return True
         
         try:
-            if exchange.lower() == "gmo":
-                ws_url = "wss://api.coin.z.com/ws/public/v1"
-            elif exchange.lower() == "binance":
-                binance_symbol = symbol.replace("_", "").lower()
-                if "jpy" in binance_symbol:
-                    binance_symbol = binance_symbol.replace("jpy", "usdt")
-                ws_url = f"wss://stream.binance.com:9443/ws/{binance_symbol}@ticker"
-            else:
-                logger.error("Unsupported exchange", exchange=exchange)
+            exchange_configs = {
+                "gmo": "wss://api.coin.z.com/ws/public/v1",
+                "binance": f"wss://stream.binance.com:9443/ws/{symbol.replace('_', '').lower()}@ticker",
+                "bitbank": "wss://stream.bitbank.cc/socket.io/?EIO=3&transport=websocket",
+                "coincheck": "wss://ws-api.coincheck.com/",
+                "okj": "wss://ws.okx.com:8443/ws/v5/public",
+                "bittrade": "wss://api.bittrade.co.jp/ws/public/v1",
+                "bybit": f"wss://stream.bybit.com/v5/public/spot",
+                "okx": "wss://ws.okx.com:8443/ws/v5/public",
+                "phemex": "wss://phemex.com/ws",
+                "bitget": "wss://ws.bitget.com/spot/v1/stream",
+                "mexc": "wss://wbs.mexc.com/ws",
+                "kucoin": "wss://ws-api.kucoin.com/endpoint",
+                "bitmex": "wss://ws.bitmex.com/realtime",
+                "hyperliquid": "wss://api.hyperliquid.xyz/ws"
+            }
+            
+            if exchange.lower() not in exchange_configs:
+                logger.error("Unsupported exchange", exchange=exchange, supported=list(exchange_configs.keys()))
                 return False
+                
+            ws_url = exchange_configs[exchange.lower()]
+            
+            if exchange.lower() == "binance":
+                formatted_symbol = symbol.replace("_", "").lower()
+                if "jpy" in formatted_symbol:
+                    formatted_symbol = formatted_symbol.replace("jpy", "usdt")
+                ws_url = f"wss://stream.binance.com:9443/ws/{formatted_symbol}@ticker"
             
             logger.info("Creating WebSocket connection", url=ws_url)
             
@@ -127,8 +145,10 @@ class TopgunDataCollector:
                         error=str(e))
     
     async def _process_tick_data(self, exchange: str, symbol: str, data: Dict[str, Any]):
-        """Process and store tick data"""
+        """Process and store tick data for all supported exchanges"""
         try:
+            tick = None
+            
             if exchange.lower() == "gmo":
                 if data.get("channel") == "trades":
                     for trade in data.get("trades", []):
@@ -154,8 +174,146 @@ class TopgunDataCollector:
                     )
                     await self._save_tick_data(tick)
                     
+            elif exchange.lower() == "bitbank":
+                if data.get("type") == "ticker":
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data.get("last", 0)),
+                        volume=float(data.get("vol", 0)),
+                        side="unknown",
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "coincheck":
+                if "rate" in data:
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data["rate"]),
+                        volume=float(data.get("amount", 0)),
+                        side=data.get("order_type", "unknown"),
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() in ["okj", "okx"]:
+                if data.get("arg", {}).get("channel") == "tickers":
+                    for ticker in data.get("data", []):
+                        tick = TickData(
+                            exchange=exchange,
+                            symbol=symbol,
+                            price=float(ticker.get("last", 0)),
+                            volume=float(ticker.get("vol24h", 0)),
+                            side="unknown",
+                            timestamp=datetime.utcnow()
+                        )
+                        await self._save_tick_data(tick)
+                        
+            elif exchange.lower() == "bittrade":
+                if data.get("channel") == "ticker":
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data.get("last", 0)),
+                        volume=float(data.get("volume", 0)),
+                        side="unknown",
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "bybit":
+                if data.get("topic", "").startswith("tickers"):
+                    ticker_data = data.get("data", {})
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(ticker_data.get("lastPrice", 0)),
+                        volume=float(ticker_data.get("volume24h", 0)),
+                        side="unknown",
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "phemex":
+                if data.get("type") == "snapshot":
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data.get("last", 0)),
+                        volume=float(data.get("volume", 0)),
+                        side="unknown",
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "bitget":
+                if data.get("action") == "snapshot":
+                    for ticker in data.get("data", []):
+                        tick = TickData(
+                            exchange=exchange,
+                            symbol=symbol,
+                            price=float(ticker.get("close", 0)),
+                            volume=float(ticker.get("baseVolume", 0)),
+                            side="unknown",
+                            timestamp=datetime.utcnow()
+                        )
+                        await self._save_tick_data(tick)
+                        
+            elif exchange.lower() == "mexc":
+                if data.get("c") == "spot@public.deals.v3.api":
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(data.get("p", 0)),
+                        volume=float(data.get("v", 0)),
+                        side=data.get("S", "unknown"),
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "kucoin":
+                if data.get("type") == "message":
+                    ticker_data = data.get("data", {})
+                    tick = TickData(
+                        exchange=exchange,
+                        symbol=symbol,
+                        price=float(ticker_data.get("price", 0)),
+                        volume=float(ticker_data.get("size", 0)),
+                        side=ticker_data.get("side", "unknown"),
+                        timestamp=datetime.utcnow()
+                    )
+                    await self._save_tick_data(tick)
+                    
+            elif exchange.lower() == "bitmex":
+                if data.get("table") == "trade":
+                    for trade in data.get("data", []):
+                        tick = TickData(
+                            exchange=exchange,
+                            symbol=symbol,
+                            price=float(trade.get("price", 0)),
+                            volume=float(trade.get("size", 0)),
+                            side=trade.get("side", "unknown"),
+                            timestamp=datetime.fromisoformat(trade.get("timestamp", "").replace("Z", "+00:00"))
+                        )
+                        await self._save_tick_data(tick)
+                        
+            elif exchange.lower() == "hyperliquid":
+                if data.get("channel") == "trades":
+                    for trade in data.get("data", []):
+                        tick = TickData(
+                            exchange=exchange,
+                            symbol=symbol,
+                            price=float(trade.get("px", 0)),
+                            volume=float(trade.get("sz", 0)),
+                            side=trade.get("side", "unknown"),
+                            timestamp=datetime.utcnow()
+                        )
+                        await self._save_tick_data(tick)
+                    
         except Exception as e:
-            logger.error("Error processing tick data", error=str(e))
+            logger.error("Error processing tick data", exchange=exchange, error=str(e))
     
     async def _process_orderbook_data(self, exchange: str, symbol: str, data: Dict[str, Any]):
         """Process and store orderbook data"""
